@@ -18,3 +18,6 @@ rm provider.tf_tmp
 terraform init
 terraform plan
 terraform apply -auto-approve
+
+## gke set up
+gcloud container clusters get-credentials my-gke-cluster --region=us-central1
