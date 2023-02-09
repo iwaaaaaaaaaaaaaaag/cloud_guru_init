@@ -7,17 +7,9 @@ tfenv install 1.0.0
 tfenv use 1.0.0
 
 ## enable gcp api
-gcloud services enable container.googleapis.com
+gcloud services enable container.googleapis.com 
+gcloud services enable compute.googleapis.com 
+gcloud services enable dns.googleapis.com
 
-## set project
-GCP_PROJECT=$(gcloud config configurations list | grep PROJECT: | awk -F' ' '{print $2}')
-sed s/GCP_PROJECT/$GCP_PROJECT/g provider.tf_tmp > provider.tf
-rm provider.tf_tmp
-
-## do terraform 
-terraform init
-terraform plan
-terraform apply -auto-approve
-
-## gke set up
-gcloud container clusters get-credentials my-gke-cluster --region=us-central1
+## set terraform env
+export TF_VAR_project_id=$(gcloud config configurations list | grep PROJECT: | awk -F' ' '{print $2}')
