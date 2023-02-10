@@ -13,3 +13,5 @@ gcloud services enable dns.googleapis.com
 
 ## set terraform env
 export TF_VAR_project_id=$(gcloud config configurations list | grep PROJECT: | awk -F' ' '{print $2}')
+
+terraform init

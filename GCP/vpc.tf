@@ -162,6 +162,7 @@ resource "google_container_cluster" "primary" {
   initial_node_count = 1
   network            = google_compute_network.private_network.name
   subnetwork         = google_compute_subnetwork.private_network_subnet.name
+  remove_default_node_pool = true
 
   private_cluster_config {
     enable_private_nodes    = true # 各ノードのパブリックIPを無効化
@@ -179,5 +180,28 @@ resource "google_container_cluster" "primary" {
       cidr_block   = google_compute_subnetwork.private_network_subnet.ip_cidr_range
       display_name = var.private_network_name
     }
+  }
+}
+
+resource "google_service_account" "default" {
+  account_id   = "service-account-id"
+  display_name = "Service Account"
+}
+
+resource "google_container_node_pool" "node_pool" {
+  name       = "my-node-pool"
+  cluster    = google_container_cluster.primary.id
+  node_count = 4
+  node_config {
+    machine_type = "e2-medium"
+    # Google recommends custom service accounts that have cloud-platform scope and permissions granted via IAM Roles.
+    service_account = google_service_account.default.email
+    oauth_scopes    = [
+      "https://www.googleapis.com/auth/cloud-platform"
+    ]
+  }
+  timeouts {
+    create = "30m"
+    update = "20m"
   }
 }
