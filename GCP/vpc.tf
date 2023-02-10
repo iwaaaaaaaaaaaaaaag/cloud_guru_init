@@ -5,59 +5,26 @@ resource "google_compute_network" "private_network" {
   auto_create_subnetworks = false
 }
 
-resource "google_compute_network" "public_network" {
-  name                    = var.public_network_name
-  project                 = var.project_id
-  auto_create_subnetworks = false
-}
-
 resource "google_compute_subnetwork" "private_network_subnet" {
   name          = "${var.private_network_name}-subnet"
-  ip_cidr_range = "10.10.20.0/24"
+  ip_cidr_range = var.private_network_subnet
   region        = var.region
   network       = google_compute_network.private_network.self_link
   private_ip_google_access = true
   secondary_ip_range {
     range_name    = "services"
-    ip_cidr_range = "10.10.21.0/24"
+    ip_cidr_range = var.gke_services_subnet
   }
   secondary_ip_range {
     range_name    = "pods"
-    ip_cidr_range = "10.20.0.0/16"
+    ip_cidr_range = var.gke_pods_subnet
   }
 }
 
-resource "google_compute_subnetwork" "public_network_subnet" {
-  name          = "${var.public_network_name}-subnet"
-  ip_cidr_range = "10.10.10.0/24"
-  region        = var.region
-  network       = google_compute_network.public_network.self_link
-}
-
-#### firewall ####
-resource "google_compute_firewall" "public_network_allow_ingress_internal" {
-  name          = "${var.public_network_name}-allow-ingress-internal"
+### firewall
+resource "google_compute_firewall" "private_network_allow_ingress_my_instance" {
+  name          = "${var.private_network_name}-allow-ingress-bastion-instance"
   network       = google_compute_network.private_network.self_link
-  source_ranges = ["10.0.0.0/8"]
-
-  allow {
-    protocol = "icmp"
-  }
-
-  allow {
-    protocol = "tcp"
-    ports    = ["0-65535"]
-  }
-
-  allow {
-    protocol = "udp"
-    ports    = ["0-65535"]
-  }
-}
-
-resource "google_compute_firewall" "public_network_allow_ingress_my_instance" {
-  name          = "${var.public_network_name}-allow-ingress-bastion-instance"
-  network       = google_compute_network.public_network.self_link
   source_ranges = ["0.0.0.0/0"]
 
 
@@ -71,19 +38,6 @@ resource "google_compute_firewall" "public_network_allow_ingress_my_instance" {
   }
 
   target_tags = ["bastion"]
-}
-
-#### vpc peering ####
-resource "google_compute_network_peering" "public_to_private_network" {
-  name         = "public-to-private-network"
-  network      = google_compute_network.public_network.self_link
-  peer_network = google_compute_network.private_network.self_link
-}
-
-resource "google_compute_network_peering" "private_to_public_network" {
-  name         = "public-to-private-network"
-  network      = google_compute_network.private_network.self_link
-  peer_network = google_compute_network.public_network.self_link
 }
 
 ### google private access ###
@@ -140,10 +94,14 @@ resource "google_compute_router_nat" "nat" {
   nat_ips                            = [google_compute_address.nat_address.self_link]
 }
 
-### public gce instance ###
-resource "google_compute_instance" "my_pub_instance" {
+### private gce instance ###
+resource "google_compute_address" "bastion_static_ip" {
+  name = "bastion-address"
+}
+
+resource "google_compute_instance" "my_pri_instance" {
   project      = var.project_id
-  zone         = "${var.zone}"
+  zone         = var.zone
   name         = "bastion"
   machine_type = "e2-micro"
 
@@ -156,7 +114,7 @@ resource "google_compute_instance" "my_pub_instance" {
   }
 
   network_interface {
-    subnetwork         = "${var.public_network_name}-subnet"
+    subnetwork         = google_compute_subnetwork.private_network_subnet.name
     subnetwork_project = var.project_id
     access_config {
       nat_ip = google_compute_address.bastion_static_ip.address
@@ -169,10 +127,6 @@ resource "google_compute_instance" "my_pub_instance" {
 
   metadata_startup_script = "apt-get install kubectl"
 
-}
-
-resource "google_compute_address" "bastion_static_ip" {
-  name = "bastion-address"
 }
 
 ### GKE ###
@@ -222,8 +176,8 @@ resource "google_container_cluster" "primary" {
 
   master_authorized_networks_config {
     cidr_blocks {
-      cidr_block   = google_compute_subnetwork.public_network_subnet.ip_cidr_range
-      display_name = var.public_network_name
+      cidr_block   = google_compute_subnetwork.private_network_subnet.ip_cidr_range
+      display_name = var.private_network_name
     }
   }
 }

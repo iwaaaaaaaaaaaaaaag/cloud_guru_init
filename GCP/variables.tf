@@ -32,3 +32,18 @@ variable "cluster_name" {
   type    = string
   default = "private-gke"
 }
+
+variable "private_network_subnet" {
+  type    = string
+  default = "10.10.20.0/24"
+}
+
+variable "gke_services_subnet" {
+  type    = string
+  default = "10.10.21.0/24"
+}
+
+variable "gke_pods_subnet" {
+  type    = string
+  default = "10.20.0.0/16"
+}
