@@ -155,6 +155,19 @@ resource "google_compute_firewall" "private_gke_network_allow_egress_masternode"
   }
 }
 
+# コントロールプレーン用のingress
+resource "google_compute_firewall" "private_gke_network_allow_igress_masternode" {
+  name               = "private-gke-network-allow-igress-masternode"
+  network            = google_compute_network.private_network.self_link
+  source_ranges      = [var.gke_cluster_control_plane_ip_range]
+
+  allow {
+    protocol = "tcp"
+    ports    = ["9443"]
+  }
+}
+
+
 # gke
 resource "google_container_cluster" "primary" {
   name               = var.cluster_name
