@@ -1,20 +1,24 @@
 locals {
   resources = [
     {
-      region           = "${var.region}1"
-      subnet_name      = "subnet1"
-      subnet_cidr      = "172.16.0.0/16"
-      router_name      = "subnet1-${var.region}1-router"
-      nat_name         = "subnet1-${var.region}1-nat"
-      nat_address_name = "nat-address1"
+      region                 = "${var.region}1"
+      subnet_name            = "subnet1"
+      subnet_cidr            = "172.16.0.0/16"
+      router_name            = "subnet1-${var.region}1-router"
+      nat_name               = "subnet1-${var.region}1-nat"
+      nat_address_name       = "nat-address1"
+      cluster_name           = "cluster1"
+      master_ipv4_cidr_block = "192.168.0.0/28"
     },
     {
-      region           = "${var.region}2"
-      subnet_name      = "subnet2"
-      subnet_cidr      = "172.24.0.0/16"
-      router_name      = "subnet1-${var.region}2-router"
-      nat_name         = "subnet1-${var.region}2-nat"
-      nat_address_name = "nat-address2"
+      region                 = "${var.region}2"
+      subnet_name            = "subnet2"
+      subnet_cidr            = "172.24.0.0/16"
+      router_name            = "subnet1-${var.region}2-router"
+      nat_name               = "subnet1-${var.region}2-nat"
+      nat_address_name       = "nat-address2"
+      cluster_name           = "cluster2"
+      master_ipv4_cidr_block = "192.168.8.0/28"
     }
   ]
 }
@@ -45,52 +49,13 @@ module "nat" {
   region           = each.value.region
 }
 
-resource "google_container_cluster" "primary" {
-  name     = "test"
-  location = "us-west1"
-  initial_node_count = 1
-  remove_default_node_pool = true
- workload_identity_config {
-     workload_pool = "${var.project_id}.svc.id.goog"
- }
-  private_cluster_config {
-    master_ipv4_cidr_block = "192.168.0.0/28"
-  }
-
-  network_policy {
-    enabled = false
-  }
-
-  release_channel {
-    channel = "STABLE"
-  }
-  network = "asm-private-network"
-  subnetwork = "subnet1"
-
-}
-resource "google_service_account" "default" {
-  account_id   = "service-account-id"
-  display_name = "Service Account"
-}
-
-resource "google_container_node_pool" "node_pool" {
-  name       = "my-node-pool"
-  cluster    = google_container_cluster.primary.id
-  node_count = 1
-  node_config {
-    machine_type = "e2-medium"
-    # Google recommends custom service accounts that have cloud-platform scope and permissions granted via IAM Roles.
-    service_account = google_service_account.default.email
-    oauth_scopes    = [
-      "https://www.googleapis.com/auth/cloud-platform"
-    ]
-    workload_metadata_config {
-    mode = "GKE_METADATA"
-    }
-
-  }
-  timeouts {
-    create = "30m"
-    update = "20m"
-  }
+module "gke" {
+  for_each               = { for i in local.resources : i.region => i }
+  source                 = "./modules/gke/"
+  cluster_name           = each.value.cluster_name
+  region                 = each.value.region
+  project_id             = var.project_id
+  master_ipv4_cidr_block = each.value.master_ipv4_cidr_block
+  vpc                    = google_compute_network.private_network.name
+  subnet_name            = each.value.subnet_name
 }
