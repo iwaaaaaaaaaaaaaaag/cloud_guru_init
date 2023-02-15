@@ -1,0 +1,1 @@
+private_network_name = "private-gke-network"
